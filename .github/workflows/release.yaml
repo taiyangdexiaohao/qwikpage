@@ -3,9 +3,9 @@ name: "release"
 on:
   release:
     types: [published]
-  schedule:
-    - cron: '0 9 1-5 * *' # UTC 9:00 (北京时间 17:00)，仅工作日
-    - cron: '30 9 1-5 * *'
+  # schedule:
+  #   - cron: '0 9 1-5 * *' # UTC 9:00 (北京时间 17:00)，仅工作日
+  #   - cron: '30 9 1-5 * *'
   workflow_dispatch:
     inputs:
       branch:
