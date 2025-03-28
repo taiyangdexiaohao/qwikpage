@@ -1,0 +1,87 @@
+<template>
+  {{#each components as |t|}}
+    {{#if (eq t.type "Form")}}
+      <!-- 表单容器特殊处理 -->
+    <a-form
+      ref="formRef"
+      :model="formData"
+      id="{{id}}"
+      layout="{{config.props.layout}}"
+      {{#if config.props.size}}size="{{config.props.size}}"{{/if}}
+      label-align="{{config.props.labelAlign}}"
+      {{#if config.props.labelCol}}:label-col="{{objToProps config.props.labelCol}}"{{/if}}
+      {{#if config.props.wrapperCol}}:wrapper-col="{{objToProps config.props.wrapperCol}}"{{/if}}
+      style="{{style config.style}}"
+      @finish.prevent="handleFormSubmit"
+    >
+      {{#each t.elements as |c|}}
+      {{#if (eq c.type "Input")}}
+      {{> qwikpageinput id=c.id config=c.config }}
+      {{/if}}
+      {{#if (eq c.type "CheckBox")}}
+      {{> qwikpagecheckbox id=c.id config=c.config methods=t.methods events=t.events }}
+      {{/if}}
+      {{#if (eq c.type "Button")}}
+      {{> qwikpagebutton id=c.id config=c.config methods=c.methods events=c.events }}
+      {{/if}}
+      {{/each}}
+    </a-form>
+    {{/if}}
+    {{#if (eq t.type "Flex")}}
+    <!-- Flex -->
+    {{> qwikpageflex id=t.id elements=t.elements config=t.config methods=t.methods events=t.events }}
+    {{/if}}
+    {{#if (eq t.type "Input")}}
+    <!-- 输入框组件 -->
+    {{> qwikpageinput id=t.id config=t.config }}
+    {{/if}}
+    {{#if (eq t.type "Button")}}
+    <!-- 按钮组件 -->
+    {{> qwikpagebutton id=t.id config=t.config methods=t.methods events=t.events }}
+    {{/if}}
+    {{#if (eq t.type "CheckBox")}}
+    <!-- CheckBox -->
+    {{> qwikpagecheckbox id=t.id config=t.config methods=t.methods events=t.events }}
+    {{/if}}
+  {{/each}}
+</template>
+
+<script>
+  import { ref } from 'vue'
+
+  export default {
+    name: 'ComponentRenderer',
+    props: {
+      components: {
+        type: Array,
+        required: true
+      }
+    },
+    setup() {
+      const formData = ref({})
+      const formRef = ref(null)
+
+      const handleEvent = (eventType, component) => {
+        console.log('Event triggered:', eventType, component.id)
+        if (eventType === 'onFinish') {
+          formRef.value?.validate(valid => {
+            if (valid) {
+              console.log('Submit data:', formData.value)
+            }
+          })
+        }
+      }
+
+      const handleFormSubmit = (values) => {
+        console.log('Form Submit Success:', values);
+      }
+
+      return {
+        formData,
+        formRef,
+        handleEvent,
+        handleFormSubmit,
+      }
+    }
+  }
+</script>
