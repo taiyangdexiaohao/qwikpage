@@ -89,7 +89,6 @@ pub fn generate_package_json(
             "@vitejs/plugin-vue": "^5.2.1",
             "@vitejs/plugin-vue-jsx": "^4.1.1",
             "@vue/tsconfig": "^0.7.0",
-            "npm-run-all2": "^7.0.2",
             "typescript": "~5.7.3",
             "vite": "^6.1.0",
             "vite-plugin-vue-devtools": "^7.7.2",
@@ -109,6 +108,8 @@ pub fn register_partial(handlebars: &mut Handlebars) {
     handlebars.register_template_string("views", include_str!("templates/views.hbs"))
         .unwrap();
     // 注册组件代码片段
+    handlebars.register_partial("qwikpageform", include_str!("templates/form.hbs"))
+        .unwrap();
     handlebars.register_partial("qwikpageinput", include_str!("templates/input.hbs"))
         .unwrap();
     handlebars.register_partial("qwikpagebutton", include_str!("templates/button.hbs"))

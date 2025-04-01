@@ -17,15 +17,23 @@ import { useEffect, useState } from "react";
 import usePreferencesStore from "./stores/preferencesStore";
 import UpdaterDialog from "./components/UpdaterDialog";
 import "@/styles/global.less";
-function App() {
-    const [loading, setLoading] = useState(true)
-    const { get_preferences, fontFamily, fontSize } = usePreferencesStore();
+import { attachConsole } from "@tauri-apps/plugin-log";
 
+function App() {
+    const [loading, setLoading] = useState(true);
+    const { get_preferences, fontFamily, fontSize } = usePreferencesStore();
     useEffect(() => {
-        get_preferences().then(() => {
-            setLoading(false);
-        });
-    }, [])
+        const fetchData = async () => {
+            const detach = await attachConsole();
+            // call detach() if you do not want to print logs to the console anymore
+
+            get_preferences().then(() => {
+                setLoading(false);
+            });
+        };
+
+        fetchData();
+    }, []);
     useEffect(() => {
         if (fontFamily !== null) {
             document.documentElement.style.fontFamily = `"${fontFamily === "default" ? "sans-serif" : fontFamily}"`;
@@ -50,12 +58,16 @@ function App() {
                     colorLink: "#216EF7",
                     colorInfo: "#216EF7",
                     controlHeight: 28,
+                    borderRadius: 4,
+                    fontFamily: fontFamily,
                 },
                 components: {
                     Button: {
                         defaultBorderColor: "#D0DAE8",
                         fontWeight: 300,
                         defaultShadow: "none",
+                        primaryShadow: "none",
+                        dangerShadow: "none",
                         boxShadow: "none",
                     },
                     Input: {
@@ -68,8 +80,8 @@ function App() {
                     },
                     Form: {
                         itemMarginBottom: 15,
-                        verticalLabelPadding: 0
-                    }
+                        verticalLabelPadding: 0,
+                    },
                 },
                 // algorithm: marsTheme === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
             }}
@@ -78,7 +90,7 @@ function App() {
                 <AntdGlobal />
                 <RouterProvider router={router} />
             </AntdApp>
-            {import.meta.env.MODE !== 'development' && <UpdaterDialog />}
+            {import.meta.env.MODE !== "development" && <UpdaterDialog />}
         </ConfigProvider>
     );
 }

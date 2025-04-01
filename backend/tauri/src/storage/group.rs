@@ -8,23 +8,24 @@ use uuid::Uuid;
 use crate::types::group::{Group, GroupConfig, GroupDetail, GroupList};
 use crate::types::project::Project;
 use crate::utils::datetime::get_current_time;
-use crate::utils::dirs::get_config_path;
+use crate::utils::dirs::projects_group_path;
 
 fn default_group() -> Group {
     Group {
-        id: "-1".to_string(),
+        id: Uuid::new_v4().to_string(),
         name: "默认分组".to_string(),
         projects: None,
         created_at: None,
         updated_at: None,
+        is_default: Some(true)
     }
 }
 
 impl GroupConfig {
     /// 从文件加载配置
     pub fn load() -> io::Result<Self> {
-        let path = get_config_path().join("group.json");
-        log::info!("load group config from {}", path.display());
+        let path = projects_group_path();
+        log::info!("查询项目分组信息({})", path.display());
         if !path.exists() {
             let mut def_group = default_group();
             def_group.created_at = Some(get_current_time());
@@ -55,31 +56,29 @@ impl GroupConfig {
 
     /// 将配置保存到文件
     pub fn save(&self) -> io::Result<()> {
-        let path = get_config_path().join("group.json");
+        let path = projects_group_path();
         let json = serde_json::to_string_pretty(self).unwrap();
         fs::write(path, json)
     }
 
     /// 添加一个新分组
-    pub fn add_group(&mut self, name: String) -> Result<String, Error> {
+    pub fn add_group(&mut self, name: String) -> Result<Group, Error> {
         let id = Uuid::new_v4().to_string();
-        log::info!("add group: {}", name);
         let group = Group {
             id: id.clone(),
             name,
             projects: None,
             created_at: Some(get_current_time()),
             updated_at: Some(get_current_time()),
+            is_default: Some(false)
         };
-        self.groups.push(group);
-        info!("group added: {:?}", self.groups);
+        self.groups.push(group.clone());
         self.save()?;
-        Ok(id)
+        Ok(group)
     }
 
     /// 删除一个分组
     pub fn delete_group(&mut self, id: &str) -> Result<bool, Error> {
-        log::info!("delete group: {}", id);
         // 默认分组，不允许删除
         let original_len = self.groups.len();
         self.groups.retain(|group| group.id != id);
@@ -89,7 +88,6 @@ impl GroupConfig {
 
     /// 更新一个分组
     pub fn update_group(&mut self, id: &str, name: Option<String>) -> Result<bool, Error> {
-        log::info!("update group: {}", id);
         if let Some(group) = self.groups.iter_mut().find(|group| group.id == id) {
             if let Some(new_name) = name {
                 group.name = new_name;
@@ -130,6 +128,7 @@ impl GroupConfig {
                 created_at: group.created_at.clone().unwrap_or_default(),
                 updated_at: group.updated_at.clone().unwrap_or_default(),
                 projects: Some(projects_in_group),
+                is_default: group.is_default
             });
         }
 
@@ -141,14 +140,16 @@ impl GroupConfig {
             .collect();
 
         if !unassigned_projects.is_empty() {
-            log::info!("Found {} unassigned projects", unassigned_projects.len());
-            // 遍历 group_list  如果 id wei -1，则将unassigned_projects 合并到它的 projects 里面，数据做合并不是覆盖
+            log::info!("未分组项目({})放置到默认分组", unassigned_projects.len());
+            // 遍历 group_list  如果 group.is_default 为 true，则将unassigned_projects 合并到它的 projects 里面，数据做合并不是覆盖
             for group in &mut group_list {
-                if group.id == "-1".to_string() {
-                    if let Some(projects) = &mut group.projects {
-                        projects.extend(unassigned_projects.iter().cloned());
-                    } else {
-                        group.projects = Some(unassigned_projects.clone());
+                if let Some(is_def) = group.is_default {
+                    if is_def {
+                        if let Some(projects) = &mut group.projects {
+                            projects.extend(unassigned_projects.iter().cloned());
+                        } else {
+                            group.projects = Some(unassigned_projects.clone());
+                        }
                     }
                 }
             }

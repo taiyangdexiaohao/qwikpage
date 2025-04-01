@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Layout, Button, message } from "antd";
+import { Layout, Button, message, Space, Select } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import { usePageStore } from "@/stores/pageStore";
 import styles from "./index.module.less";
@@ -20,6 +20,9 @@ import problue from "@/assets/image/header/headerT_blue.png";
 import progreen from "@/assets/image/header/headerT_green.png";
 import propurple from "@/assets/image/header/headerT_purple.png";
 import prored from "@/assets/image/header/headerT_red.png";
+import ExpandArrowIcon from "@/assets/icons/ExpandArrowIcon.svg?react";
+import { EyeOutlined, SaveOutlined, LeftOutlined } from "@ant-design/icons";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const appWebview = getCurrentWebviewWindow();
 
@@ -39,16 +42,17 @@ const Header = memo(() => {
     const navigate = useNavigate();
     const location = useLocation();
     const searchParams = new URLSearchParams(location.search);
-    const projectId = searchParams.get('projectId') || undefined;
+    const projectId = searchParams.get("projectId") || undefined;
     const platform = useOsInfo();
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [headerStyle, setHeaderStyle] = useState<React.CSSProperties>({
         paddingLeft: undefined,
-        paddingRight: '0',
+        paddingRight: "0",
         transition: "padding-left 0.3s ease",
     });
     const [saveLoading, setSaveLoading] = useState(false);
     const [exportLoading, setExportLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
 
     const settingRef = useRef<ISystemSettingRef>();
 
@@ -60,7 +64,19 @@ const Header = memo(() => {
         setIsFullscreen(fullscreen);
     };
 
-    const { mode, theme, setMode, setTheme, page, savePageInfo, currentTab } = usePageStore((state) => {
+    const {
+        mode,
+        theme,
+        setMode,
+        setTheme,
+        page,
+        savePageInfo,
+        currentTab,
+        isEdit,
+        updateEditState,
+        canvasWidth,
+        updateCanvasWidth,
+    } = usePageStore((state) => {
         return {
             page: state.page,
             mode: state.mode,
@@ -69,6 +85,10 @@ const Header = memo(() => {
             setTheme: state.setTheme,
             savePageInfo: state.savePageInfo,
             currentTab: state.currentTab,
+            isEdit: state.isEdit,
+            updateEditState: state.updateEditState,
+            canvasWidth: state.canvasWidth,
+            updateCanvasWidth: state.updateCanvasWidth,
         };
     });
 
@@ -91,6 +111,13 @@ const Header = memo(() => {
     const isMac = useMemo(() => {
         return platform.osType === "macos";
     }, [platform]);
+
+    const showSaveBtn = useMemo(() => {
+        return (
+            (!currentTab || currentTab === PanelKey.ComponentPanel || currentTab === PanelKey.OutlinePanel) &&
+            location.pathname.includes("/editor/")
+        );
+    }, [currentTab, location.pathname]);
 
     // 添加窗口事件监听器
     useEffect(() => {
@@ -136,17 +163,17 @@ const Header = memo(() => {
         const updateHeaderStyle = async () => {
             const baseStyle: React.CSSProperties = {
                 paddingLeft: macStoplightsVisible ? MAC_PADDING_LEFT : undefined,
-                paddingRight: isMac ? '12px' : 0,
+                paddingRight: isMac ? "12px" : 0,
                 transition: "padding-left 0.3s ease",
             };
 
-            if (['/project/pages', '/resources'].includes(location.pathname) && projectId) {
+            if (["/project/pages", "/resources"].includes(location.pathname) && projectId) {
                 const res = await projectService.getProjectDetail(projectId);
                 const backgroundImage = themeColorToImageMap[res.themeColor];
                 setHeaderStyle({
                     ...baseStyle,
                     backgroundImage: `url(${backgroundImage})`,
-                    color: '#fff'
+                    color: "#fff",
                 });
                 return;
             }
@@ -157,11 +184,7 @@ const Header = memo(() => {
         updateHeaderStyle();
     }, [location.pathname, projectId, macStoplightsVisible, isMac]);
 
-    console.log(location.pathname);
-
     // 判断是否显示DSL相关按钮
-    console.log("Header中的currentTab:", currentTab);
-    console.log("PanelKey.CodingPanel:", PanelKey.CodingPanel);
     const showDSLButtons = currentTab === PanelKey.CodingPanel;
 
     // 保存DSL的处理函数
@@ -171,7 +194,7 @@ const Header = memo(() => {
 
         try {
             // 获取当前页面数据
-            const value = JSON.parse(localStorage.getItem('current_dsl_content') || '{}');
+            const value = JSON.parse(localStorage.getItem("current_dsl_content") || "{}");
 
             if (!value || !value.page) {
                 message.error("页面数据格式异常，请检查重试");
@@ -195,7 +218,7 @@ const Header = memo(() => {
             message.success("保存成功");
         } catch (error) {
             message.error("保存失败");
-            console.error('保存失败:', error);
+            console.error("保存失败:", error);
         } finally {
             setSaveLoading(false);
         }
@@ -208,7 +231,7 @@ const Header = memo(() => {
 
         try {
             // 获取当前页面数据
-            const value = JSON.parse(localStorage.getItem('current_dsl_content') || '{}');
+            const value = JSON.parse(localStorage.getItem("current_dsl_content") || "{}");
 
             if (!value || !value.page) {
                 message.error("页面数据格式异常，请检查重试");
@@ -240,10 +263,40 @@ const Header = memo(() => {
             }
         } catch (error) {
             message.error("导出失败");
-            console.error('导出失败:', error);
+            console.error("导出失败:", error);
         } finally {
             setExportLoading(false);
         }
+    };
+
+    // 修改画布尺寸
+    const handleClickCanvas = (val: string) => {
+        // 直接使用pageStore中的updateCanvasWidth方法
+        updateCanvasWidth(val);
+    };
+
+    // 保存页面数据
+    const savePageData = async () => {
+        setLoading(true);
+        try {
+            await pageService.updatePageData({
+                id: page.id,
+                projectId: page.projectId,
+                pageData: JSON.stringify({ ...page.pageData, variableData: {}, formData: {} }),
+            });
+            message.success("页面保存成功");
+            updateEditState(false);
+            setLoading(false);
+        } catch (error) {
+            message.error("页面保存失败");
+            setLoading(false);
+        }
+    };
+
+    // 预览页面
+    const handlePreview = () => {
+        const previewUrl = `${import.meta.env.VITE_PREVIEW_URL}/project/${page.projectId}${page.path}`;
+        openUrl(previewUrl);
     };
 
     return (
@@ -252,12 +305,52 @@ const Header = memo(() => {
                 data-tauri-drag-region
                 className={styles.layoutHeader}
                 style={headerStyle}
+                onDragOver={(e) => {
+                    // 阻止从操作系统向浏览器中拖拽文件时，浏览器默认行为
+                    e.preventDefault();
+                }}
+                onDrop={(e) => {
+                    // 阻止从操作系统向浏览器中拖拽文件时，浏览器默认行为
+                    e.preventDefault();
+                }}
             >
-                <div className={styles.logo} onClick={goHome} style={{ color: ['/project/pages', '/resources'].includes(location.pathname) ? '#fff' : '#000' }}>
-                    <Logo style={{ color: ['/project/pages', '/resources'].includes(location.pathname) ? '#fff' : '#216EF7' }} />
+                <div
+                    className={styles.logo}
+                    onClick={goHome}
+                    style={{ color: ["/project/pages", "/resources"].includes(location.pathname) ? "#fff" : "#000" }}
+                >
+                    <Logo
+                        style={{
+                            color: ["/project/pages", "/resources"].includes(location.pathname) ? "#fff" : "#216EF7",
+                        }}
+                    />
                     <span>QwikPage</span>
+                    {/\/editor\/[^/]+\/[^/]+\/edit/.test(location.pathname) && (
+                        <>
+                            <div className={styles.divider}></div>
+                            <div
+                                className={styles.pageName}
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    console.log("点击了页面名称", page.projectId);
+                                    try {
+                                        const projectDetail = await projectService.getProjectDetail(page.projectId);
+                                        navigate(
+                                            `/project/pages?projectId=${
+                                                page.projectId
+                                            }&projectName=${encodeURIComponent(projectDetail.name)}`
+                                        );
+                                    } catch (error) {
+                                        console.error("获取项目名称失败", error);
+                                        navigate(`/project/pages?projectId=${page.projectId}`);
+                                    }
+                                }}
+                            >
+                                {page.name}
+                            </div>
+                        </>
+                    )}
                 </div>
-                {/* 用户信息&发布&发布记录 */}
                 <div className={styles.user}>
                     {/* 仅在DSL页签时显示按钮 */}
                     {showDSLButtons && (
@@ -266,7 +359,7 @@ const Header = memo(() => {
                                 <Button
                                     icon={<SaveIcon />}
                                     type="text"
-                                    iconPosition={'start'}
+                                    iconPosition={"start"}
                                     size="small"
                                     loading={saveLoading}
                                     onClick={handleSave}
@@ -276,7 +369,7 @@ const Header = memo(() => {
                                 <Button
                                     icon={<ExportIcon />}
                                     type="text"
-                                    iconPosition={'start'}
+                                    iconPosition={"start"}
                                     size="small"
                                     loading={exportLoading}
                                     onClick={handleExport}
@@ -287,11 +380,52 @@ const Header = memo(() => {
                             <div className={styles.divider}></div>
                         </>
                     )}
+                    {/* 仅在组件页签时显示按钮 */}
+                    {showSaveBtn && (
+                        <>
+                            <Space size={0} style={{ marginRight: -10 }} className={styles.componentBtns}>
+                                <Select
+                                    variant="borderless"
+                                    options={[
+                                        { label: "1920px", value: "1920px" },
+                                        { label: "1440px", value: "1440px" },
+                                        { label: "1280px", value: "1280px" },
+                                        { label: "1024px", value: "1024px" },
+                                        { label: "960px", value: "960px" },
+                                        { label: "自适应", value: "auto" },
+                                    ]}
+                                    style={{ width: 95 }}
+                                    value={canvasWidth}
+                                    onChange={handleClickCanvas}
+                                    suffixIcon={
+                                        <ExpandArrowIcon
+                                            width={12}
+                                            height={12}
+                                            style={{
+                                                transform: "rotate(-180deg)",
+                                            }}
+                                        />
+                                    }
+                                />
+                                <Button
+                                    type="text"
+                                    icon={<SaveOutlined />}
+                                    onClick={savePageData}
+                                    loading={loading}
+                                    size="small"
+                                >
+                                    保存
+                                </Button>
+                                <Button type="text" icon={<EyeOutlined />} onClick={handlePreview} size="small">
+                                    预览
+                                </Button>
+                            </Space>
+                            <div className={styles.divider}></div>
+                        </>
+                    )}
                     {/* 系统设置的按钮图标 */}
                     <SettingOutlined onClick={onOpenSettingClick} />
-                    {!isMac && (
-                        <div className={styles.divider} style={{ marginRight: '-15px' }}></div>
-                    )}
+                    {!isMac && <div className={styles.divider} style={{ marginRight: "-7px" }}></div>}
                     {/* 预览模式 */}
                     {mode === "preview" && (
                         <Button type="primary" onClick={handleExitPreview}>

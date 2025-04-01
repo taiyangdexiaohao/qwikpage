@@ -143,7 +143,12 @@ const ConfigPanel = memo(() => {
             {selectedElement?.type ? <><ConfigSvg style={{ fontSize: 16 }} /> <span className={styles.text}>{selectedElement?.type}</span></> : null}
           </div>
           <Suspense fallback={<SpinLoading />}>
-            <SetterRender attrs={ComponentConfig?.attrs || []} form={form} name={selectedElement?.type} />
+            <SetterRender
+              attrs={ComponentConfig?.attrs || []}
+              form={form}
+              elementId={selectedElement?.id}
+              formItemId={selectedElement?.id ? elementsMap[selectedElement.id]?.config?.props?.formItem?.name : undefined}
+            />
           </Suspense>
         </Form>
       ),
@@ -186,7 +191,8 @@ const ConfigPanel = memo(() => {
         components: {
           Tabs: {
             titleFontSize: 14,
-            horizontalMargin: '0 0 10px 0'
+            horizontalMargin: '0 0 10px 0',
+            horizontalItemPadding: '5px 0'
           },
           Form: {
             labelColor: '#333333',

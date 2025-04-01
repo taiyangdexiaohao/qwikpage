@@ -17,13 +17,14 @@ const formLayoutFull = {
 interface IAttrs {
   attrs: SchemaType[];
   form: FormInstance;
-  name?: string;
+  elementId?: string;
+  formItemId?: string;
 }
 /**
  * 属性设置器
  * 根据JSON生成简单的属性配置
  */
-const SetterRender = memo(({ attrs, form, name }: IAttrs) => {
+const SetterRender = memo(({ attrs, form, elementId, formItemId }: IAttrs) => {
   if (attrs.length === 0) return <></>;
   console.log(attrs)
   // 根据type枚举
@@ -31,18 +32,34 @@ const SetterRender = memo(({ attrs, form, name }: IAttrs) => {
     <>
       {/* ---组件共有属性--- */}
       {/* 组件名称 */}
-      {name && <Form.Item name="name" label="组件名称">
-        <Input defaultValue={name} />
+      {!formItemId && elementId && <Form.Item name={['formItem', 'name']} label="组件名称">
+        <Input defaultValue={elementId} />
+      </Form.Item>}
+      {formItemId && formItemId && <Form.Item name={['formItem', 'name']} label="组件名称">
+        <Input defaultValue={formItemId} />
       </Form.Item>}
       {/* 是否显示 */}
-      {name && <Form.Item layout='horizontal' colon={false} key="showOrHide" name="showOrHide" label="是否显示" valuePropName="checked">
+      {<Form.Item layout='horizontal' colon={false} key="showOrHide" name="showOrHide" label="是否显示" valuePropName="checked">
         <Switch size='small' defaultChecked />
       </Form.Item>}
+
       {/* ---组件属性--- */}
       {attrs.map((item: SchemaType, index) => {
         if (!item) return;
         const key = item.key || item.name?.toString() || item.label?.toString() + index.toString();
         let FormControl = <></>;
+
+        // 检查是否是表单项配置（包含标题，name字段，和栅格等）
+        const isFormItemLabelOrName = Array.isArray(item.name) &&
+          item.name.length > 0 &&
+          item.name[0] === 'formItem' &&
+          (item.name[1] === 'label' || item.name[1] === 'name' || item.name[1] === 'labelCol' || item.name[1] === 'wrapperCol');
+
+        // 如果是表单项的标题或字段配置，栅格之类的，则跳过渲染
+        if (isFormItemLabelOrName && !formItemId) {
+          return null;
+        }
+
         if (item.type == 'Title') {
           return null;
           // return (
@@ -89,7 +106,7 @@ const SetterRender = memo(({ attrs, form, name }: IAttrs) => {
           FormControl = <Slider {...item.props} />;
         } else if (item.type === 'Variable') {
           FormControl = <VariableBindInput {...item.props} />;
-        } else if (item.type === 'function') {
+        } else if (item.type === 'function' && formItemId) {
           return item.render?.(form);
         } else if (item.type === 'Icons') {
           // 获取所有的antd图标，动态渲染到下拉框中

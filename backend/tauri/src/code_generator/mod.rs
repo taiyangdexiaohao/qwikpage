@@ -1,10 +1,6 @@
 mod utils;
 
-use crate::{
-    error::{CommonError, Result},
-    storage::page::PageConfig,
-    types::project::Project,
-};
+use crate::{storage::page::PageConfig, types::project::Project};
 use code_core::types::{
     ffi::FfiResult,
     generator::{GeneratedArtifact, GeneratorOptions},
@@ -17,6 +13,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use tokio::fs as async_fs;
+use crate::code_generator::utils::{export_resources, clear_code_dir};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExportCodeParams {
@@ -30,18 +27,24 @@ struct StepPayload {
     message: String,
 }
 
-pub async fn export_code(app: AppHandle, params: ExportCodeParams) -> Result<()> {
+pub async fn export_code(app: AppHandle, params: ExportCodeParams) -> Result<(), String> {
     log::info!("======开始导出代码========");
 
-    // 获取插件包目录
+    // 获取应用资源目录
     let resource_dir = app.path().resource_dir().map_err(|e| {
-        log::error!("获取资源目录失败: {}", e);
-        CommonError::Other(e.to_string())
+        log::error!("获取应用资源目录失败: {}", e);
+        return format!("获取应用资源目录失败: {}", e);
     })?;
+
+    // 获取插件包目录
     let plugins_dir = resource_dir.join("plugins");
+    log::info!("获取应用资源插件包目录: {:#?}", plugins_dir.clone());
     if !plugins_dir.exists() {
-        log::error!("获取插件包目录失败");
-        return Err(CommonError::Other("获取插件包目录失败".to_string()));
+        log::error!("获取应用资源插件包目录失败, {:#?}", plugins_dir.clone());
+        return Err(format!(
+            "获取应用资源插件包目录失败, {:#?}",
+            plugins_dir.clone()
+        ));
     }
 
     let lib_path: PathBuf;
@@ -58,34 +61,47 @@ pub async fn export_code(app: AppHandle, params: ExportCodeParams) -> Result<()>
         lib_path = plugins_dir.join(format!("code_{}.dll", params.export_type));
     }
 
-    //    lib_path 没有值直接返回
+    // lib_path 没有值直接返回
+    log::info!("获取应用资源插件: {:#?}", lib_path);
     if !lib_path.exists() {
         log::info!("lib_path, {:?}", lib_path);
-        return Err(CommonError::Other("不支持该类型插件".to_string()));
+        return Err(format!("插件包 {:?} 不存在，请联系应用维护人员获取插件包", lib_path));
     }
 
-    let lib = unsafe { Library::new(lib_path).map_err(|e| CommonError::Other(e.to_string()))? };
+    // 加载插件包
+    let lib = unsafe { Library::new(lib_path).map_err(|e| e.to_string())? };
 
     let window = app.get_webview_window("main").unwrap();
 
-    log::info!("查询项目 {:?} 页面信息", &params.project_id);
+    log::info!("查询项目 {:?} 信息", &params.project_id);
     let project = Project::load(params.project_id.clone()).map_err(|e| {
-        log::error!("查询项目 {:?} 项目信息失败: {:?}", &params.project_id, e);
-        e
+        log::error!("查询项目 {:?} 信息失败, {:?}", &params.project_id, e);
+        return format!("查询项目 {} 信息失败, {}", &params.project_id, e);
     })?;
     let page_list = PageConfig::list_with_options(params.project_id.clone())?;
 
     let page_len = page_list.len();
     if page_len == 0 {
         log::info!("项目没有页面，导出结束");
-        return Err(CommonError::NoPages);
+        return Err("项目没有页面，导出结束".to_string());
     }
 
     let code_export_path = project.code_export_path;
     let project_export_path = PathBuf::from(code_export_path).join(&params.project_id);
 
     log::info!("创建项目代码目录: {:?}", project_export_path);
-    async_fs::create_dir_all(&project_export_path).await?;
+    async_fs::create_dir_all(&project_export_path)
+        .await
+        .map_err(|e| {
+            log::error!("创建代码导出根目录失败, {}", e.to_string());
+            format!("创建代码导出根目录失败, {}", e.to_string())
+        })?;
+
+    // 清空目录
+    if let Err(e) = clear_code_dir(&project_export_path).await {
+        log::error!("{}", e);
+        return Err(e.to_string());
+    }
 
     // 按需调整
     let options = GeneratorOptions {
@@ -97,21 +113,24 @@ pub async fn export_code(app: AppHandle, params: ExportCodeParams) -> Result<()>
     };
 
     unsafe {
-        // 如果是mac file name 是  "lib"+params.export_type.to_string() + ".dylib", 如果是windows 则是 params.export_type.to_string() + ".dll"
-
         let generate: Symbol<unsafe extern "C" fn(*const c_char) -> *mut c_char> =
             lib.get(b"generate_project").map_err(|e| e.to_string())?;
-        let options_json =
-            CString::new(serde_json::to_string(&options)?).map_err(|e| e.to_string())?;
-        let result_ptr = generate(options_json.as_ptr());
+        let options_json = serde_json::to_string(&options).map_err(|e| e.to_string())?;
+        let options_cstring = CString::new(options_json).map_err(|e| e.to_string())?;
+        let result_ptr = generate(options_cstring.as_ptr());
         let result_str = CStr::from_ptr(result_ptr)
             .to_str()
             .map_err(|e| e.to_string())?;
-        let result: FfiResult<Vec<GeneratedArtifact>> = serde_json::from_str(result_str)?;
-        handle_generation_result(result);
+        let result: FfiResult<Vec<GeneratedArtifact>> =
+            serde_json::from_str(result_str).map_err(|e| e.to_string())?;
+        handle_generation_result(result)?;
     }
 
-    // TODO 导出资源
+    // 导出资源
+    if let Err(e) = export_resource(&params.project_id, &project_export_path).await {
+        log::error!("{}", e);
+        return Err(e);
+    }
 
     // 步骤3：完成
     window
@@ -132,27 +151,34 @@ pub async fn export_code(app: AppHandle, params: ExportCodeParams) -> Result<()>
         )
         .map_err(|e| {
             log::error!("打开文件目录失败: {}", e);
-            CommonError::Other(e.to_string())
+            format!("打开文件目录失败: {}", e)
         })?;
 
     log::info!("======代码导出完成========");
     Ok(())
 }
 
-fn handle_generation_result(result: FfiResult<Vec<GeneratedArtifact>>) -> anyhow::Result<()> {
+fn handle_generation_result(result: FfiResult<Vec<GeneratedArtifact>>) -> Result<(), String> {
     if result.success {
-        println!("Successfully generated:");
+        log::info!("Successfully generated:");
         for artifact in result.data.unwrap() {
-            println!(
+            log::info!(
                 "✓ {} ({} bytes)",
                 artifact.file_path,
                 artifact.content.len()
             );
         }
-        println!("\nRun your project:");
-        println!("cd dist-vue && npm install && npm run dev");
+        log::info!("运行项目");
+        log::info!("npm install && npm run dev");
     } else {
-        anyhow::bail!("Generation failed: {}", result.error.unwrap());
+        return Err(format!("出码失败: {:#?}", result.error));
     }
     Ok(())
+}
+
+async fn export_resource(project_id: &str, code_dir: &PathBuf) -> Result<(), String> {
+    // 使用基础生成器的资源导出功能
+    export_resources(&project_id, &code_dir, "public").await.map_err(|e| {
+        return format!("导出静态资源失败: {}", e);
+    })
 }

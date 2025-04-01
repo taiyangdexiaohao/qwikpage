@@ -1,11 +1,13 @@
 pub mod datetime;
-pub mod file;
 pub mod dirs;
+pub mod file;
 pub mod setup;
 
-use std::net::TcpStream;
+use chrono::Local;
+use log::{info, Level};
+use std::{net::TcpStream, path::Path};
 
-use tauri::{process::current_binary, AppHandle, Runtime, Manager};
+use tauri::{process::current_binary, AppHandle, Manager, Runtime};
 
 // 分页
 pub fn paginate<T: Clone>(items: Vec<T>, page_num: usize, page_size: usize) -> (Vec<T>, usize) {
@@ -21,7 +23,6 @@ pub fn check_port_occupied(port: u16) -> bool {
     TcpStream::connect(address).is_ok()
 }
 
-
 pub fn restart_application<R: Runtime>(app_handle: AppHandle<R>) {
     let env = app_handle.env();
     let path = current_binary(&env).unwrap();
@@ -31,11 +32,41 @@ pub fn restart_application<R: Runtime>(app_handle: AppHandle<R>) {
     if arg.len() > 1 {
         args.extend(arg.iter().skip(1).cloned());
     }
-    log::info!("restart app: {:#?} with args: {:#?}", path, args);
+    info!("restart app: {:#?} with args: {:#?}", path, args);
     std::process::Command::new(path)
         .args(args)
         .spawn()
         .expect("application failed to start");
     app_handle.exit(0);
     std::process::exit(0);
-  }
+}
+
+pub fn custom_log_out(
+    out: tauri_plugin_log::fern::FormatCallback<'_>,
+    message: &std::fmt::Arguments<'_>,
+    record: &log::Record<'_>,
+) {
+    // 自定义日志级别映射
+    let level_short = match record.level() {
+        Level::Error => "E", // Error -> E
+        Level::Warn => "W",  // Warn -> W
+        Level::Info => "I",  // Info -> I
+        Level::Debug => "D", // Debug -> D
+        Level::Trace => "T", // Trace -> T
+    };
+    // 区分windows 和 mac
+    let file_path = record.file_static().unwrap();
+    let file_name = Path::new(file_path)
+        .file_name() // This handles both '/' and '\' separators correctly
+        .unwrap_or_default()
+        .to_string_lossy();
+
+    out.finish(format_args!(
+        "{} ({}:{:#?}) [{}] > {}",
+        Local::now().format("%H:%M:%S").to_string(),
+        file_name,
+        record.line().unwrap_or(0),
+        level_short,
+        message
+    ))
+}

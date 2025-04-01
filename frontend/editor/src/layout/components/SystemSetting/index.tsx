@@ -79,7 +79,7 @@ export function SystemSetting(props: ISystemSettingProps) {
         });
     }
 
-    // 修改数据存放目录
+    // 修改默认项目目录
     const handleOpenDir = async () => {
         const defaultDir = form.getFieldValue("dataDir");
         const dirPath = await oepnDataDir({
@@ -123,6 +123,7 @@ export function SystemSetting(props: ISystemSettingProps) {
                 <Button color="primary" variant="outlined" onClick={onRestore}>
                     重置为默认
                 </Button>
+                <span style={{paddingLeft: 8}}>重启程序生效</span>
             </div>
 
             <div>
@@ -137,7 +138,7 @@ export function SystemSetting(props: ISystemSettingProps) {
     );
 
     return (
-        <Modal title="系统设置" open={visible} onCancel={handleCancel} width={500} footer={customFooter}>
+        <Modal title="系统设置" open={visible} onCancel={handleCancel} width={600} footer={customFooter}>
             <Form form={form} layout="vertical" autoComplete="off">
                 <Form.Item label="字体" name="fontfamily">
                     <Select
@@ -145,9 +146,9 @@ export function SystemSetting(props: ISystemSettingProps) {
                         options={(systemFontFamilys || []).map((font) => ({ label: font, value: font }))}
                     />
                 </Form.Item>
-                <Form.Item label="数据存放目录" name="dataDir">
+                <Form.Item label="默认项目" name="dataDir">
                     <Input
-                        placeholder={"数据存放目录"}
+                        placeholder={"默认项目"}
                         addonAfter={<EllipsisOutlined onClick={handleOpenDir} />}
                         {...props}
                     />

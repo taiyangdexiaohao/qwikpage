@@ -11,6 +11,22 @@ export default {
       label: '标签配置',
       key: 'formItem',
     },
+     {
+      type: 'Input',
+      label: '标题',
+      name: ['formItem', 'label'],
+      props: {
+        placeholder: '请输入文本标题',
+      },
+    },
+    // {
+    //   type: 'Input',
+    //   label: '组件名称',
+    //   name: ['formItem', 'name'],
+    //   props: {
+    //     placeholder: '请输入提交字段',
+    //   },
+    // },
     {
       type: 'RadioGroupBtn',
       label: '类型',
@@ -70,7 +86,7 @@ export default {
     {
       type: 'Input',
       label: '工具提示',
-      name: ['formItem', 'tooltip'],
+      name: ['tooltip'],
       props: {
         placeholder: '请输入工具提示',
       },
@@ -85,22 +101,6 @@ export default {
       label: '禁用',
       name: ['formWrap', 'disabled'],
     },
-    // {
-    //   type: 'Input',
-    //   label: '标题',
-    //   name: ['formItem', 'label'],
-    //   props: {
-    //     placeholder: '请输入文本标题',
-    //   },
-    // },
-    // {
-    //   type: 'Input',
-    //   label: '字段',
-    //   name: ['formItem', 'name'],
-    //   props: {
-    //     placeholder: '请输入提交字段',
-    //   },
-    // },
     // {
     //   type: 'Switch',
     //   label: '无样式',
@@ -164,14 +164,14 @@ export default {
     //   label: '布局',
     //   key: 'FormLayout',
     // },
-    // {
-    //   type: 'InputNumber',
-    //   label: '标签占位',
-    //   name: ['formItem', 'labelCol', 'span'],
-    //   props: {
-    //     placeholder: '占位格数',
-    //   },
-    // },
+    {
+      type: 'InputNumber',
+      label: '标签栅格布局',
+      name: ['formItem', 'labelCol', 'span'],
+      props: {
+        placeholder: '请输入',
+      },
+    },
     // {
     //   type: 'InputNumber',
     //   label: '标签偏移',
@@ -180,14 +180,14 @@ export default {
     //     placeholder: '偏移数',
     //   },
     // },
-    // {
-    //   type: 'InputNumber',
-    //   label: '控件占列',
-    //   name: ['formItem', 'wrapperCol', 'span'],
-    //   props: {
-    //     placeholder: '占位格数',
-    //   },
-    // },
+    {
+      type: 'InputNumber',
+      label: '控件栅格布局',
+      name: ['formItem', 'wrapperCol', 'span'],
+      props: {
+        placeholder: '请输入',
+      },
+    },
     // {
     //   type: 'InputNumber',
     //   label: '控件偏移',

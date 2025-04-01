@@ -12,13 +12,13 @@ use crate::{
     },
     utils::{check_port_occupied, dirs::get_config_path, setup},
 };
-use chrono::Local;
-use log::{self, Level};
+use log;
 use once_cell::sync::OnceCell;
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{is_dev, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_log::{Target, TargetKind};
+use utils::custom_log_out;
 
 // #[cfg(target_os = "windows")]
 // use {
@@ -128,18 +128,25 @@ pub fn run() {
             log::trace!("Init App Config Store");
             setup::init(app)?;
 
-            log::trace!("Init Preview Service");
-            // 初始化 rocket 服务，用于项目页面预览
+            // 异步初始化项目页面预览服务
             let handle = app.handle().clone();
             let port = 8789;
             if check_port_occupied(port) {
-                log::error!("Port {} is already in use", port);
+                log::error!("端口:{} 被占用, 项目页面预览服务启动失败", port);
             } else {
                 tauri::async_runtime::spawn(async move {
-                    let rocket = preview_service::configure_rocket(handle);
-                    let _ = rocket.launch().await;
+                    let preview_servcie = preview_service::configure_rocket(handle);
+                    match preview_servcie.launch().await {
+                        Ok(_) => {
+                            log::info!("项目页面预览服务启动成功");
+                        }
+                        Err(err) => {
+                            log::error!("项目页面预览服务启动失败: {}", err);
+                        }
+                    }
                 });
             }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -188,34 +195,4 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running qwikpage application");
-}
-
-fn custom_log_out(out: tauri_plugin_log::fern::FormatCallback<'_>, message: &std::fmt::Arguments<'_>, record: &log::Record<'_>) {
-    // 自定义日志级别映射
-    let level_short = match record.level() {
-        Level::Error => "E",  // Error -> E
-        Level::Warn => "W",   // Warn -> W
-        Level::Info => "I",   // Info -> I
-        Level::Debug => "D",  // Debug -> D
-        Level::Trace => "T",  // Trace -> T
-    };
-    out.finish(format_args!(
-        "{} ({:#?}:{:#?}) [{}] > {}",
-        Local::now().format("%H:%M:%S").to_string(),
-        record.target(),
-        record.line().unwrap_or(0),
-        level_short,
-        message
-    ))
-}
-
-fn is_dev() -> bool {
-    #[cfg(dev)]
-    {
-        return true;
-    }
-    #[cfg(not(dev))]
-    {
-        return false;
-    }
 }
