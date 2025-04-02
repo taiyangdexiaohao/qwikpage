@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Form, Input, InputNumber, Radio, Select, Switch, Slider, FormInstance, Tooltip, Popover } from 'antd';
-import * as icons from '@ant-design/icons';
+import * as icons from '@qwikpage/icons';
 import { QuestionCircleOutlined, CaretDownOutlined } from '@ant-design/icons';
 import { SchemaType } from '@/packages/types';
 import MColorPicker from '../ColorPicker';
@@ -8,6 +8,8 @@ import VariableBindInput from '../VariableBind/VariableBind';
 import InputSelect from '../InputSelect/InputSelect';
 import InputPx from '../StyleConfig/InputPx';
 import styles from './index.module.less';
+import { usePageStore } from '@/stores/pageStore';
+import { renderIconDefinitionToSVGElement } from '@qwikpage/icons/es/helpers';
 
 // 如果没有设置label，则独占一行
 const formLayoutFull = {
@@ -17,16 +19,24 @@ const formLayoutFull = {
 interface IAttrs {
   attrs: SchemaType[];
   form: FormInstance;
-  elementId?: string;
-  formItemId?: string;
 }
 /**
  * 属性设置器
  * 根据JSON生成简单的属性配置
  */
-const SetterRender = memo(({ attrs, form, elementId, formItemId }: IAttrs) => {
+const SetterRender = memo(({ attrs, form }: IAttrs) => {
+  const { selectedElement, elementsMap } = usePageStore((state) => {
+    return {
+      selectedElement: state.selectedElement,
+      elementsMap: state.page.pageData.elementsMap,
+    };
+  });
+
   if (attrs.length === 0) return <></>;
-  console.log(attrs)
+
+  const elementId = selectedElement?.id;
+  const formItemId = selectedElement?.id ? elementsMap[selectedElement.id]?.config?.props?.formItem?.name : undefined;
+
   // 根据type枚举
   return (
     <>
@@ -35,11 +45,11 @@ const SetterRender = memo(({ attrs, form, elementId, formItemId }: IAttrs) => {
       {!formItemId && elementId && <Form.Item name={['formItem', 'name']} label="组件名称">
         <Input defaultValue={elementId} />
       </Form.Item>}
-      {formItemId && formItemId && <Form.Item name={['formItem', 'name']} label="组件名称">
+      {formItemId && <Form.Item name={['formItem', 'name']} label="组件名称">
         <Input defaultValue={formItemId} />
       </Form.Item>}
       {/* 是否显示 */}
-      {<Form.Item layout='horizontal' colon={false} key="showOrHide" name="showOrHide" label="是否显示" valuePropName="checked">
+      {(formItemId || elementId) && <Form.Item layout='horizontal' colon={false} key="showOrHide" name="showOrHide" label="是否显示" valuePropName="checked">
         <Switch size='small' defaultChecked />
       </Form.Item>}
 
@@ -116,14 +126,19 @@ const SetterRender = memo(({ attrs, form, elementId, formItemId }: IAttrs) => {
               {Object.keys(icons)
                 .filter((item) => !['default', 'createFromIconfontCN', 'getTwoToneColor', 'setTwoToneColor', 'IconProvider'].includes(item))
                 .map((key) => {
+                  const svgHTMLString = renderIconDefinitionToSVGElement(iconsList[key], {
+                    extraSVGAttrs: { width: '1em', height: '1em', fill: 'currentColor' },
+                  })
                   return (
                     <Select.Option value={key} key={key}>
-                      {React.createElement(iconsList[key], {
-                        style: {
+                      <span
+                        className='anticon'
+                        style={{
                           fontSize: '18px',
                           verticalAlign: 'middle',
-                        },
-                      })}
+                        }}
+                        dangerouslySetInnerHTML={{ __html: svgHTMLString }}
+                      />
                     </Select.Option>
                   );
                 })}

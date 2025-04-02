@@ -4,6 +4,7 @@ mod services;
 mod storage;
 mod types;
 mod utils;
+mod manager;
 
 use crate::{
     services::{
@@ -94,6 +95,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
